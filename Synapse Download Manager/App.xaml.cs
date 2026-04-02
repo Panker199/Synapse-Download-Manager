@@ -13,5 +13,6 @@ namespace Synapse_Download_Manager
     /// </summary>
     public partial class App : Application
     {
+
     }
 }
