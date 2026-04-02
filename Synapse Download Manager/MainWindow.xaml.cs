@@ -1,5 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
+using System.IO;
+using System.Net;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -14,13 +19,12 @@ namespace Synapse_Download_Manager
     {
         private List<DownloadItem> downloadItems = new List<DownloadItem>();
         private List<TorrentItem> torrentItems = new List<TorrentItem>();
+        private DownloadManager downloadManager = new DownloadManager();
 
         public MainWindow()
         {
             InitializeComponent();
             InitializeSampleData();
-            DownloadsContainer.ItemsSource = downloadItems;
-            TorrentsContainer.ItemsSource = torrentItems;
         }
 
         private void InitializeSampleData()
@@ -202,6 +206,147 @@ namespace Synapse_Download_Manager
             {
                 border.Effect = null;
             }
+        }
+
+        private void MinimizeBtn_Click(object sender, RoutedEventArgs e)
+        {
+            WindowState = WindowState.Minimized;
+        }
+
+        private void MaximizeBtn_Click(object sender, RoutedEventArgs e)
+        {
+            if (WindowState == WindowState.Maximized)
+            {
+                WindowState = WindowState.Normal;
+                var icon = this.FindName("MaximizeIcon") as TextBlock;
+                if (icon != null) icon.Text = "\uE922"; // Maximize icon
+            }
+            else
+            {
+                WindowState = WindowState.Maximized;
+                var icon = this.FindName("MaximizeIcon") as TextBlock;
+                if (icon != null) icon.Text = "\uE923"; // Restore icon
+            }
+        }
+
+        private void CloseBtn_Click(object sender, RoutedEventArgs e)
+        {
+            Close();
+        }
+
+        private void TitleBar_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            if (e.ClickCount == 2)
+            {
+                MaximizeBtn_Click(sender, e);
+            }
+            else
+            {
+                DragMove();
+            }
+        }
+
+        private void AddUrlBtn_Click(object sender, RoutedEventArgs e)
+        {
+
+        }
+
+        private void PauseBtn_Click(object sender, RoutedEventArgs e)
+        {
+            downloadManager.PauseDownload();
+        }
+
+        private void ResumeBtn_Click(object sender, RoutedEventArgs e)
+        {
+            downloadManager.ResumeDownload();
+        }
+
+        private void CancelBtn_Click(object sender, RoutedEventArgs e)
+        {
+            downloadManager.CancelDownload();
+        }
+
+        private void CloseBtn_Click_1(object sender, RoutedEventArgs e)
+        {
+            Close();
+        }
+
+        private void Button_Click(object sender, RoutedEventArgs e)
+        {
+
+        }
+    }
+
+    public class DownloadManager
+    {
+        private WebClient webClient;
+        private CancellationTokenSource cts;
+        private string currentUrl;
+        private bool isPaused;
+        private MemoryStream downloadBuffer;
+        private long bytesReceived;
+        private long totalBytes;
+        private string tempFilePath;
+        private string finalFilePath;
+
+        public void AddDownload(string url)
+        {
+            if (webClient != null)
+                return; // Only one at a time for this demo
+            currentUrl = url;
+            tempFilePath = Path.GetTempFileName();
+            finalFilePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads", Path.GetFileName(url));
+            webClient = new WebClient();
+            webClient.DownloadProgressChanged += WebClient_DownloadProgressChanged;
+            webClient.DownloadFileCompleted += WebClient_DownloadFileCompleted;
+            cts = new CancellationTokenSource();
+            webClient.DownloadFileAsync(new Uri(url), tempFilePath);
+        }
+
+        public void PauseDownload()
+        {
+            if (webClient != null && !isPaused)
+            {
+                webClient.CancelAsync();
+                isPaused = true;
+            }
+        }
+
+        public void ResumeDownload()
+        {
+            if (isPaused && !string.IsNullOrEmpty(currentUrl))
+            {
+                isPaused = false;
+                AddDownload(currentUrl); // Simple resume (restarts for demo)
+            }
+        }
+
+        public void CancelDownload()
+        {
+            if (webClient != null)
+            {
+                webClient.CancelAsync();
+                webClient.Dispose();
+                webClient = null;
+                isPaused = false;
+            }
+        }
+
+        private void WebClient_DownloadProgressChanged(object sender, DownloadProgressChangedEventArgs e)
+        {
+            // TODO: Update UI with progress
+        }
+
+        private void WebClient_DownloadFileCompleted(object sender, AsyncCompletedEventArgs e)
+        {
+            if (!e.Cancelled && e.Error == null)
+            {
+                File.Move(tempFilePath, finalFilePath);
+                MessageBox.Show("Download completed!", "Info", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            webClient.Dispose();
+            webClient = null;
+            isPaused = false;
         }
     }
 }
